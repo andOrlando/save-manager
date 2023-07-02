@@ -6,8 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-colored = "2.0.0"
+clap = {version="4.3.10", features=["derive", "color", "unstable-styles"]}
+anstyle = "1.0.0"
 copy_dir = "0.1.2"
 dirs = "5.0.1"
 serde = {version="1.0.164", features=["derive"]}
 serde_json = "1.0.99"
+colored = "2.0.0"
