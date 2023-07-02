@@ -1,16 +1,22 @@
-use colored::Colorize;
-
 use crate::cli::ListCategory;
 use crate::data::{load_data, save_data};
 use crate::types::{App, Category, Save, AppError};
 
-use std::path::{PathBuf, Path};
-use std::fs::{remove_dir_all, canonicalize, metadata, remove_file, rename};
 use chrono::Utc;
+use colored::Colorize;
+use copy_dir::copy_dir;
+use itertools::izip;
+use std::env::temp_dir;
+use std::fs::{remove_dir_all, canonicalize, metadata, remove_file, rename};
+use std::path::{PathBuf, Path};
 
-pub fn create(name: &String, path: &PathBuf) -> AppError {
+pub fn create(name: &String, paths: &Vec<PathBuf>) -> AppError {
+    
+    //ensure paths is nonempty
+    if paths.is_empty() { return Err("You must provide at least one path") }
 
-    if !path.exists() { return Err("Path does not exist") }
+    //ensure existance of all paths
+    for path in paths { if !path.exists() { return Err("Path does not exist") }}
 
     let (data_dir, mut app) = load_data();
     
@@ -20,10 +26,12 @@ pub fn create(name: &String, path: &PathBuf) -> AppError {
     // create category
     app.categories.push(Category {
         name: name.clone(),
-        path: String::from(canonicalize(path).unwrap().to_string_lossy()),
         saves: Vec::new(),
         auto: None,
-        max: 0
+        max: 0,
+        paths: paths.iter().map(|path| {
+            String::from(canonicalize(path).unwrap().to_string_lossy())
+        }).collect::<Vec<_>>(),
     });
 
     println!("Created category {}", name.bold().bright_green());
@@ -39,10 +47,18 @@ pub fn delete(name: &String) -> AppError {
     let category = &app.categories[index];
     
     //delete all saves
-    for save in &category.saves[..] { remove_all(&save.path)?; }
+    for save in &category.saves[..] {
+        for path in save.get_paths(category, &file) {
+            remove_all(path).unwrap();
+        }
+    }
     
     //remove autosave if autosave exists
-    if category.auto.is_some() { remove_all(category.get_auto_path(&file))?; }
+    if category.auto.is_some() {
+        for path in category.get_auto_paths(&file) {
+            remove_all(path).unwrap();
+        }
+    }
 
     //remove from categores and update
     app.categories.remove(index);
@@ -85,27 +101,35 @@ pub fn list(category: &Option<ListCategory>) -> AppError {
 }
 
 fn list_saves(app: &App) {
-    if app.current.is_none() { println!("No current category so no versions listed"); return; }
+    if app.current.is_none() { println!("No current save :/"); return; }
     
     let category = app.current_category().unwrap();
+    println!("{}", format!("Files in {}", category.name).bold().bright_green());
+    
+    for path in &category.paths {
+        println!("{}", path);
+    }
+    println!("");
+    
     if category.saves.is_empty() && category.auto.is_none() {
         println!("No versions in {}", app.current.as_ref().unwrap()); return
     }
-
-    println!("{}", format!("Versions in {}", app.current.as_ref().unwrap()).bold().bright_green());
     
-    if let Some(date) = &category.auto { println!("{} auto", date); }
+    let digits = { let len=category.saves.len() as f64; len.log10() as usize + 1 };
+
+    println!("{}", "Revisions".bold().bright_green());
+    if let Some(date) = &category.auto { println!("{} {:digits$} auto", date, ""); }
 
     for (i, save) in category.saves.iter().enumerate() { 
         match &save.name {
-            Some(name) => println!("{} {} {name}", save.date, i),
-            _ => println!("{} {}", save.date, i)
+            Some(name) => println!("{} {:digits$} {name}", save.date, i),
+            _ => println!("{} {:digits$}", save.date, i)
         }
     }
 }
 
 fn list_categories(app: &App) {
-    if app.categories.is_empty() { println!("No categories yet :/"); return; }
+    if app.categories.is_empty() { println!("No saves yet :/"); return; }
     
     println!("{}", "Categories".bold().bright_green());
     for category in &app.categories[..] {
@@ -127,9 +151,8 @@ pub fn save(name: &Option<String>) -> AppError {
     let current = app.current_category_mut()?;
 
     //copy path into local
-    let source_path = &current.path;
     let new_save = Save {
-        path: String::from(file.join(format!("{}_{}", current.name, current.max)).to_string_lossy()),
+        real_index: current.max,
         name: name.clone(),
         date: format!("{}", Utc::now().format("%_m/%d %k:%M")),
     };
@@ -137,7 +160,10 @@ pub fn save(name: &Option<String>) -> AppError {
     current.max += 1;
     current.saves.push(new_save.clone());
 
-    copy_dir::copy_dir(source_path, new_save.path).unwrap();
+    // copy_dir::copy_dir(source_path, new_save.path).unwrap();
+    for (source, local) in izip!(&current.paths, new_save.get_paths(current, &file)) {
+        copy_dir(source, local).unwrap();
+    }
 
     if let Some(name) = name {
         println!("Saved {} in {}",
@@ -159,14 +185,24 @@ pub fn load_name(current: &mut Category, file: &Path, name: &str) -> AppError {
     else { current.get_save_index(name)? };
     
     let save = &current.saves[index];
-    let auto = current.get_auto_path(&file);
-    
-    //update auto
-    if metadata(&auto).is_ok() { remove_all(&auto)?; }
-    rename(&current.path, &auto).unwrap();
 
-    //copy from save to path
-    copy_dir::copy_dir(&save.path, &current.path).unwrap();
+    //every vector we need
+    let locals = save.get_paths(current, file);
+    let sources = &current.paths;
+    let autos = current.get_auto_paths(file);
+        
+    //update auto
+    if current.auto.is_some() {
+        for auto in &autos {
+            remove_all(auto)?;
+        }
+    }
+    
+    //move source to auto and copy local to source
+    for (local, source, auto) in izip!(locals, sources, autos) {
+        rename(&source, &auto).unwrap();
+        copy_dir(&local, &source).unwrap();
+    }
 
     current.auto = Some(format!("{}", Utc::now().format("%_m/%d %k:%M")));
     println!("Loaded version {} in {}",
@@ -178,13 +214,19 @@ pub fn load_auto(current: &mut Category, file: &Path) -> AppError {
     
     if current.auto.is_none() { return Err("No autosave in current category") }
     
-    let auto = current.get_auto_path(&file);
-    let _auto = auto.with_file_name("_auto");
+    // let auto = current.get_auto_path(&file);
+    // let _auto = auto.with_file_name("_auto");
+    let sources = &current.paths;
+    let autos = current.get_auto_paths(&file);
+    let _autos = autos.iter().map(|path| temp_dir().join(path.file_name().unwrap()))
+        .collect::<Vec<_>>();
     
     //move auto to _auto, save to auto, _auto to save
-    rename(&auto, &_auto).unwrap();
-    rename(&current.path, &auto).unwrap();
-    rename(&_auto, &current.path).unwrap();
+    for (source, auto, _auto) in izip!(sources, autos, _autos) {
+        rename(&auto, &_auto).unwrap();
+        rename(&source, &auto).unwrap();
+        rename(&_auto, &source).unwrap();
+    }
     
     current.auto = Some(format!("{}", Utc::now().format("%_m/%d %k:%M")));
     println!("Loaded {} in {}",
@@ -211,7 +253,7 @@ pub fn load(name: &Option<String>) -> AppError {
 
 pub fn remove(name: &String) -> AppError {
     
-    let (data_dir, mut app) = load_data();
+    let (file, mut app) = load_data();
 
     let current = app.current_category_mut()?;
     
@@ -223,8 +265,10 @@ pub fn remove(name: &String) -> AppError {
 
     let save = &current.saves[index];
     
-    //remove the thing
-    remove_all(&save.path)?;
+    //remove the things
+    for path in save.get_paths(current, &file) {
+        remove_all(&path).unwrap();
+    }
     
     //remove it from the other thing
     current.saves.remove(index);
@@ -232,7 +276,7 @@ pub fn remove(name: &String) -> AppError {
     println!("Removed version {} in {}",
         name.bold().green(),
         current.name.bold().bright_green());
-    save_data(&data_dir, app);
+    save_data(&file, app);
     Ok(())
 }
 

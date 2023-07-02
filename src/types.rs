@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::clone::Clone;
 use serde::{Deserialize, Serialize};
 
@@ -35,7 +35,7 @@ impl App {
 #[derive(Serialize, Deserialize)]
 pub struct Category {
     pub name: String,
-    pub path: String,
+    pub paths: Vec<String>,
     pub saves: Vec<Save>,
     pub auto: Option<String>, //auto is just the date of autosave
     pub max: usize
@@ -52,19 +52,26 @@ impl Category {
         if index.is_none() { return Err("Save with this index does not exist") }
         Ok(index.unwrap())
     }
-    pub fn get_auto_path(&self, data_dir: &Path) -> Box<Path> {
-        data_dir.join(format!("{}_auto", self.name))
-            .into_boxed_path()
+    pub fn get_auto_paths(&self, file: &Path) -> Vec<PathBuf> {
+        let mut i=0;
+        self.paths.iter().map(|_| { i += 1; file.join(format!("{}_{}_auto", self.name, i)) })
+            .collect::<Vec<_>>()
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Save {
-    pub path: String,
     pub name: Option<String>,
+    pub real_index: usize,
     pub date: String,
 }
 impl Save {
+    pub fn get_paths(&self, category: &Category, file: &Path) -> Vec<PathBuf> {
+        (1..=category.paths.len()).map(|i| file.join(format!("{}_{}_{}", category.name, i, self.real_index)))
+            .collect::<Vec<_>>()
+    }
+    
+    
     // pub fn local_path(&self, category: &Category, data_dir: &Path) -> Box<Path> {
         // data_dir.join(format!("{}_{}",
             // category.name,

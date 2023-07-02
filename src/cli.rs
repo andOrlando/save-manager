@@ -27,7 +27,7 @@ pub enum Command {
         name: String,
         /// Path to new save
         #[arg(value_name="path")]
-        path: PathBuf
+        paths: Vec<PathBuf>
     },
     /// Deletes a save
     Delete {

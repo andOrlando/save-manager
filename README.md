@@ -11,5 +11,5 @@ player files. It also doubles as a pretty decent first rust project. If you're
 a job seeing this, please give me a job.
 
 TODO:
-- [ ] allow for multiple paths in one save
+- [X] allow for multiple paths in one save
 - [ ] better error handling for filesystem calls

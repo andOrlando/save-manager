@@ -3,36 +3,29 @@ mod types;
 mod data;
 mod cli;
 
+use std::process::exit;
+
 use cli::{Cli, Command};
 use functions::{create, delete, switch, list, save, load, remove};
 
 use clap::Parser;
-use types::AppError;
 use colored::Colorize;
 
-fn main() -> Result<(), u8> {
-    let res = cli();
-    if res.is_ok() { return Ok(()); }
-    
-    let message = res.unwrap_err();
-    println!("{} {}", "error:".bold().bright_red(), message);
-    Err(1)
-    
-}
+fn main() {
 
-fn cli() -> AppError {
     let cli = Cli::parse();
-    match &cli.command {
-        Command::Create { name, path } => create(name, path)?,
-        Command::Delete { name } => delete(name)?,
-        Command::Switch { name } => switch(name)?,
-        Command::List { category } => list(category)?,
-        Command::Save { name } => save(name)?,
-        Command::Load { name } => load(name)?,
-        Command::Remove { name } => remove(name)?,
-    }
+    let res = match &cli.command {
+        Command::Create { name, paths } => create(name, paths),
+        Command::Delete { name } => delete(name),
+        Command::Switch { name } => switch(name),
+        Command::List { category } => list(category),
+        Command::Save { name } => save(name),
+        Command::Load { name } => load(name),
+        Command::Remove { name } => remove(name),
+    };
     
-    Ok(())
+    if res.is_ok() { exit(0) }
+    println!("{} {}", "error:".bold().bright_red(), res.unwrap_err()); exit(1)
 }
 
 

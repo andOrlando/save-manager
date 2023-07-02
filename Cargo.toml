@@ -2,6 +2,8 @@
 name = "save-manager"
 version = "0.1.0"
 edition = "2021"
+authors = ["Bennett Gillig"]
+description = "Manages saves"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,3 +16,4 @@ serde = {version="1.0.164", features=["derive"]}
 serde_json = "1.0.99"
 colored = "2.0.0"
 chrono = "0.4.26"
+itertools = "0.11.0"
