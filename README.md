@@ -1,39 +1,15 @@
 ## save-manager
 
-for now we just write what I want it to do
+Allows for quick and easy save management for literally anything.
 
-Example use cases:
+# reason for existing
 
-```
-save-manager create terraria-worlds <path-to-worlds-file>
-save-manager save <worldname> [name]
-save-manager load <worldname> [version/name]
-save-manager clear
-save-manager remove <version>
-save-manager list
+I wanna save-scum in a video game becuase I can't beat a boss (terraria,
+plantera on master mode zenith seed for anyone interested). What this allows
+me to do is to make dated and named (or not if I dont' wanna) backups of world/
+player files. It also doubles as a pretty decent first rust project. If you're
+a job seeing this, please give me a job.
 
-save-manager switch terraria-players
-save-manager save <playername>
-save-manager load <playername>
-
-save-manager delete terraria-players
-```
-
-
-
-```
-save-manager list
-Categories
-dog1 path/to/dog1.txt
-dog2 path/to/dog2.txt
-Saves in dog1
-4/10 4:30   auto         
-4/10 3:30 1 init    
-4/10 3:30 2         
-4/10 3:30 3         
-4/10 3:30 4 special 
-4/10 3:30 5 cool     
-```
-
-
-
+TODO:
+- [ ] allow for multiple paths in one save
+- [ ] better error handling for filesystem calls
