@@ -22,7 +22,6 @@ pub fn load_data() -> (Box<Path>, App) {
     
     let json_pathbuf = data_dir.join("data.json");
     let json_path = json_pathbuf.as_path();
-    println!("path {:?}", json_pathbuf);
     
     //read/create data
     let mut file: File = OpenOptions::new()

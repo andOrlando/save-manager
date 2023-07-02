@@ -24,8 +24,8 @@ pub fn create(name: &String, path: &PathBuf) -> AppError {
         auto: None
     });
 
+    println!("Created category {}", name.bold().bright_green());
     save_data(&data_dir, app);
-
     Ok(())
 }
 
@@ -43,8 +43,8 @@ pub fn delete(name: &String) -> AppError {
     //remove from categores and update
     app.categories.remove(index);
     
+    println!("Deleted category {}", name.bold().bright_green());
     save_data(&data_dir, app);
-    
     Ok(())
 }
 
@@ -55,8 +55,8 @@ pub fn switch(name: &String) -> AppError {
     app.get_category(name)?; //ensure category exists
     app.current = Some(name.clone());
     
+    print!("Switched active category to {}", name.bold().bright_green());
     save_data(&data_dir, app);
-
     Ok(())
 }
 
@@ -133,8 +133,10 @@ pub fn save(name: &Option<String>) -> AppError {
     if metadata(&local_path).is_ok() { remove_all(&local_path)?; }
     copy_dir::copy_dir(source_path, local_path).unwrap();
     
+
+    if let Some(_name) = name { println!("Saved {} in {}", _name, &current.name) }
+    else { println!("Saved version in {}", &current.name) }
     save_data(&data_dir, app);
-    
     Ok(())
        
 }
@@ -147,18 +149,19 @@ pub fn load(name: &Option<String>) -> AppError {
     if current.saves.is_empty() { return Err("No saves in current category") }
 
     let auto = current.get_auto_path(&data_dir);
+    let name_numeric = if let Some(name) = name { name.parse::<usize>().ok() } else { None };
     
-    let save: &Save = if let Some(_name) = name {
+    let save = if let Some(name) = name {
 
-        if let Ok(index) = _name.parse::<usize>() {
+        if let Some(index) = name_numeric {
             if let Some(save) = current.saves.get(index) { save }
             else { return Err("Save with this index does not exist") }
 
-        } else if _name == "auto" {
+        } else if name == "auto" {
             if let Some(auto) = current.auto.as_ref() { auto }
             else { return Err("There is no current auto save") }
 
-        } else { current.get_save(_name)? }
+        } else { current.get_save(name)? }
 
     } else { current.saves.last().unwrap() };
     
@@ -170,10 +173,24 @@ pub fn load(name: &Option<String>) -> AppError {
     remove_all(&current.path)?;
     copy_dir::copy_dir(save.local_path(current, &data_dir), &current.path).unwrap();
     
-    //save everything
+    if let Some(index) = name_numeric {
+        println!("Loaded version {} in {}",
+            index.to_string().green(),
+            current.name.to_string().bold().bright_green());
+    } else if let Some("auto") = name.as_deref() {
+        println!("Loaded {} in {}",
+            "autosave".bold().green(),
+            current.name.bold().bright_green());
+    } else if let Some(name) = name {
+        println!("Loaded version {} in {}",
+            name.bold().green(),
+            current.name.bold().bright_green());
+    } else {
+        println!("Loaded version {} in {}",
+            current.saves.iter().position(|a| a == save).unwrap().to_string().bold().green(),
+            current.name.bold().bright_green());
+    }
     save_data(&data_dir, app);
-    print!("successfully loaded save");
-    
     Ok(())
 }
 
@@ -196,9 +213,11 @@ pub fn remove(name: &String) -> AppError {
     
     //remove it from the other thing
     current.saves.remove(index);
-    
+
+    println!("Removed version {} in {}",
+        name.bold().green(),
+        current.name.bold().bright_green());
     save_data(&data_dir, app);
-    
     Ok(())
 }
 

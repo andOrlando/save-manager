@@ -56,7 +56,7 @@ impl Category {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Save {
     pub name: Option<String>,
     pub date: String,
