@@ -5,7 +5,8 @@ use crate::data::{load_data, save_data};
 use crate::types::{App, Category, Save, AppError};
 
 use std::path::{PathBuf, Path};
-use std::fs::{remove_dir_all, canonicalize, metadata, remove_file};
+use std::fs::{remove_dir_all, canonicalize, metadata, remove_file, rename};
+use chrono::Utc;
 
 pub fn create(name: &String, path: &PathBuf) -> AppError {
 
@@ -21,7 +22,8 @@ pub fn create(name: &String, path: &PathBuf) -> AppError {
         name: name.clone(),
         path: String::from(canonicalize(path).unwrap().to_string_lossy()),
         saves: Vec::new(),
-        auto: None
+        auto: None,
+        max: 0
     });
 
     println!("Created category {}", name.bold().bright_green());
@@ -31,20 +33,25 @@ pub fn create(name: &String, path: &PathBuf) -> AppError {
 
 pub fn delete(name: &String) -> AppError {
 
-    let (data_dir, mut app) = load_data();
+    let (file, mut app) = load_data();
 
     let index = app.get_category_index(name)?;
-
+    let category = &app.categories[index];
+    
     //delete all saves
-    for save in &app.categories[index].saves[..] {
-        remove_all(save.local_path(&app.categories[index], &data_dir))?;
-    }
+    for save in &category.saves[..] { remove_all(&save.path)?; }
+    
+    //remove autosave if autosave exists
+    if category.auto.is_some() { remove_all(category.get_auto_path(&file))?; }
 
     //remove from categores and update
     app.categories.remove(index);
     
+    //if current is category, set current to none
+    if app.current.as_ref() == Some(name) { app.current = None; }
+    
     println!("Deleted category {}", name.bold().bright_green());
-    save_data(&data_dir, app);
+    save_data(&file, app);
     Ok(())
 }
 
@@ -55,7 +62,7 @@ pub fn switch(name: &String) -> AppError {
     app.get_category(name)?; //ensure category exists
     app.current = Some(name.clone());
     
-    print!("Switched active category to {}", name.bold().bright_green());
+    println!("Switched active category to {}", name.bold().bright_green());
     save_data(&data_dir, app);
     Ok(())
 }
@@ -69,6 +76,7 @@ pub fn list(category: &Option<ListCategory>) -> AppError {
         Some(ListCategory::Versions) => list_saves(&app),
         None => {
             list_categories(&app);
+            println!("");
             list_saves(&app);
         }
     }
@@ -77,120 +85,127 @@ pub fn list(category: &Option<ListCategory>) -> AppError {
 }
 
 fn list_saves(app: &App) {
-    if app.current.is_none() { println!("No current category so no saves listed"); return }
+    if app.current.is_none() { println!("No current category so no versions listed"); return; }
     
     let category = app.current_category().unwrap();
-    if category.saves.is_empty() { println!("No saves in {}", app.current.as_ref().unwrap()); return }
-
-    println!("{} {}", "Saves in".bold().bright_green(), app.current.as_ref().unwrap());
-    
-    if category.auto.is_some() {
-        let auto = category.auto.as_ref().unwrap();
-        match &auto.name {
-            Some(_) => println!("{} {}", auto.date, auto.name.as_ref().unwrap()),
-            _ => println!("{}", auto.date)
-        }
+    if category.saves.is_empty() && category.auto.is_none() {
+        println!("No versions in {}", app.current.as_ref().unwrap()); return
     }
+
+    println!("{}", format!("Versions in {}", app.current.as_ref().unwrap()).bold().bright_green());
+    
+    if let Some(date) = &category.auto { println!("{} auto", date); }
 
     for (i, save) in category.saves.iter().enumerate() { 
         match &save.name {
-            Some(_) => println!("{} {} {}", save.date, i, save.name.as_ref().unwrap()),
+            Some(name) => println!("{} {} {name}", save.date, i),
             _ => println!("{} {}", save.date, i)
         }
     }
 }
 
 fn list_categories(app: &App) {
+    if app.categories.is_empty() { println!("No categories yet :/"); return; }
+    
     println!("{}", "Categories".bold().bright_green());
     for category in &app.categories[..] {
-        println!("{}", category.name);
+        if app.current.as_ref() == Some(&category.name) { println!("->{}", category.name); }
+        else { println!("  {}", category.name); }
     }
 }
 
 pub fn save(name: &Option<String>) -> AppError {
     
     //input validation
-    if let Some(_name) = name {
-        if _name.parse::<usize>().is_ok() { return Err("Save name must not be numeric") }
-        if _name == "auto" { return Err("Save must not be named `auto`") }
+    if let Some(name) = name {
+        if name.parse::<usize>().is_ok() { return Err("Save name must not be numeric") }
+        if name == "auto" { return Err("Save must not be named `auto`") }
     } 
     
-    let (data_dir, mut app) = load_data();
+    let (file, mut app) = load_data();
 
     let current = app.current_category_mut()?;
 
     //copy path into local
     let source_path = &current.path;
     let new_save = Save {
+        path: String::from(file.join(format!("{}_{}", current.name, current.max)).to_string_lossy()),
         name: name.clone(),
-        date: String::from("date")
+        date: format!("{}", Utc::now().format("%_m/%d %k:%M")),
     };
     
+    current.max += 1;
     current.saves.push(new_save.clone());
 
-    let local_path = new_save.local_path(current, &data_dir);
-    
-    if metadata(&local_path).is_ok() { remove_all(&local_path)?; }
-    copy_dir::copy_dir(source_path, local_path).unwrap();
-    
+    copy_dir::copy_dir(source_path, new_save.path).unwrap();
 
-    if let Some(_name) = name { println!("Saved {} in {}", _name, &current.name) }
-    else { println!("Saved version in {}", &current.name) }
-    save_data(&data_dir, app);
+    if let Some(name) = name {
+        println!("Saved {} in {}",
+            name.bold().green(),
+            &current.name.bold().bright_green());
+    } else {
+        println!("Saved version in {}",
+            &current.name.bold().bright_green());
+    }
+    save_data(&file, app);
     Ok(())
        
 }
 
+pub fn load_name(current: &mut Category, file: &Path, name: &str) -> AppError {
+    
+    //get index from name
+    let index = if let Ok(index) = name.parse::<usize>() { index }
+    else { current.get_save_index(name)? };
+    
+    let save = &current.saves[index];
+    let auto = current.get_auto_path(&file);
+    
+    //update auto
+    if metadata(&auto).is_ok() { remove_all(&auto)?; }
+    rename(&current.path, &auto).unwrap();
+
+    //copy from save to path
+    copy_dir::copy_dir(&save.path, &current.path).unwrap();
+
+    current.auto = Some(format!("{}", Utc::now().format("%_m/%d %k:%M")));
+    println!("Loaded version {} in {}",
+        name.bold().green(),
+        current.name.bold().bright_green());
+    Ok(())
+}
+pub fn load_auto(current: &mut Category, file: &Path) -> AppError {
+    
+    if current.auto.is_none() { return Err("No autosave in current category") }
+    
+    let auto = current.get_auto_path(&file);
+    let _auto = auto.with_file_name("_auto");
+    
+    //move auto to _auto, save to auto, _auto to save
+    rename(&auto, &_auto).unwrap();
+    rename(&current.path, &auto).unwrap();
+    rename(&_auto, &current.path).unwrap();
+    
+    current.auto = Some(format!("{}", Utc::now().format("%_m/%d %k:%M")));
+    println!("Loaded {} in {}",
+        "autosave".bold().green(),
+        current.name.bold().bright_green());
+    Ok(())
+}
+
 pub fn load(name: &Option<String>) -> AppError {
     
-    let (data_dir, app) = load_data();
-    
-    let current = app.current_category()?;
+    let (file, mut app) = load_data();
+    let current = app.current_category_mut()?;
     if current.saves.is_empty() { return Err("No saves in current category") }
 
-    let auto = current.get_auto_path(&data_dir);
-    let name_numeric = if let Some(name) = name { name.parse::<usize>().ok() } else { None };
-    
-    let save = if let Some(name) = name {
-
-        if let Some(index) = name_numeric {
-            if let Some(save) = current.saves.get(index) { save }
-            else { return Err("Save with this index does not exist") }
-
-        } else if name == "auto" {
-            if let Some(auto) = current.auto.as_ref() { auto }
-            else { return Err("There is no current auto save") }
-
-        } else { current.get_save(name)? }
-
-    } else { current.saves.last().unwrap() };
-    
-    //copy to auto
-    if metadata(&auto).is_ok() { remove_all(&auto)?; }
-    copy_dir::copy_dir(&current.path, current.get_auto_path(&data_dir)).unwrap();
-    
-    //copy from save to path
-    remove_all(&current.path)?;
-    copy_dir::copy_dir(save.local_path(current, &data_dir), &current.path).unwrap();
-    
-    if let Some(index) = name_numeric {
-        println!("Loaded version {} in {}",
-            index.to_string().green(),
-            current.name.to_string().bold().bright_green());
-    } else if let Some("auto") = name.as_deref() {
-        println!("Loaded {} in {}",
-            "autosave".bold().green(),
-            current.name.bold().bright_green());
-    } else if let Some(name) = name {
-        println!("Loaded version {} in {}",
-            name.bold().green(),
-            current.name.bold().bright_green());
-    } else {
-        println!("Loaded version {} in {}",
-            current.saves.iter().position(|a| a == save).unwrap().to_string().bold().green(),
-            current.name.bold().bright_green());
+    match name.as_deref() {
+        Some("auto") => load_auto(current, &file)?,
+        Some(name) => load_name(current, &file, name)?,
+        _ => load_name(current, &file, &(current.saves.len()-1).to_string())?
     }
-    save_data(&data_dir, app);
+    
+    save_data(&file, app);
     Ok(())
 }
 
@@ -209,7 +224,7 @@ pub fn remove(name: &String) -> AppError {
     let save = &current.saves[index];
     
     //remove the thing
-    remove_all(save.local_path(current, &data_dir))?;
+    remove_all(&save.path)?;
     
     //remove it from the other thing
     current.saves.remove(index);

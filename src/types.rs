@@ -37,9 +37,11 @@ pub struct Category {
     pub name: String,
     pub path: String,
     pub saves: Vec<Save>,
-    pub auto: Option<Save>
+    pub auto: Option<String>, //auto is just the date of autosave
+    pub max: usize
 }
 impl Category {
+    #[allow(dead_code)]
     pub fn get_save(&self, name: &str) -> Result<&Save, &'static str> {
         let save = self.saves.iter().find(|a| a.name == Some(String::from(name)));
         if save.is_none() { return Err("Save by this name does not exist") }
@@ -58,14 +60,15 @@ impl Category {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Save {
+    pub path: String,
     pub name: Option<String>,
     pub date: String,
 }
 impl Save {
-    pub fn local_path(&self, category: &Category, data_dir: &Path) -> Box<Path> {
-        data_dir.join(format!("{}_{}",
-            category.name,
-            category.saves.iter().position(|a| a.name == self.name).unwrap()))
-            .into_boxed_path()
-    }
+    // pub fn local_path(&self, category: &Category, data_dir: &Path) -> Box<Path> {
+        // data_dir.join(format!("{}_{}",
+            // category.name,
+            // category.saves.iter().position(|a| a.name == self.name).unwrap()))
+            // .into_boxed_path()
+    // }
 }

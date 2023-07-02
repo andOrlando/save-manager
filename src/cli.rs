@@ -14,7 +14,7 @@ use anstyle::{Style, Color, AnsiColor};
     .invalid(Style::new().fg_color(Some(Color::Ansi(AnsiColor::BrightRed))))
 )]
 pub struct Cli {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub command: Command,
 }
 
