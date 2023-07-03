@@ -20,7 +20,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Creates a save
+    /// Creates save
     Create {
         /// Name of new save
         #[arg(value_name="name")]
@@ -29,11 +29,18 @@ pub enum Command {
         #[arg(value_name="path")]
         paths: Vec<PathBuf>
     },
-    /// Deletes a save
+    /// Deletes save
     Delete {
         /// Name of file to delete
         #[arg(value_name="name")]
         name: String
+    },
+    /// Changes properties of save
+    Update {
+        
+        #[command(subcommand)]
+        command: UpdateCommand
+
     },
     /// Switches active save
     Switch {
@@ -47,7 +54,7 @@ pub enum Command {
         #[arg(value_name="category")]
         category: Option<ListCategory>
     },
-    /// Saves current version
+    /// Saves version
     Save {
         /// Name of version
         #[arg(value_name="name")]
@@ -58,6 +65,12 @@ pub enum Command {
         /// Either name or index of version to load. `auto` to load autosave
         #[arg(value_name="name|index")]
         name: Option<String>
+    },
+    /// Overwrites version
+    Overwrite {
+        /// Name or index of version to overwrite
+        #[arg(value_name="name|index")]
+        name: String
     },
     /// Removes version
     Remove {
@@ -73,4 +86,14 @@ pub enum ListCategory {
     Saves,
     /// List all revisions of current save
     Versions
+}
+
+#[derive(Subcommand)]
+pub enum UpdateCommand {
+    /// Updates name of save
+    Name {
+        /// New name for save
+        #[arg(value_name="name")]
+        name: String
+    }
 }
