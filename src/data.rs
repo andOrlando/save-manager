@@ -1,16 +1,15 @@
 use std::fs::{DirBuilder, OpenOptions, File, metadata};
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::types::App;
 
-pub fn load_data() -> (Box<Path>, App) {
+pub fn load_data() -> (PathBuf, App) {
     
     //find/create data dir
     let data_dir = dirs::data_dir()
         .unwrap()
-        .join("save-manager")
-        .into_boxed_path();
+        .join("save-manager");
 
     //if data dir doesn't exist, create it
     if !metadata(&data_dir).is_ok() {

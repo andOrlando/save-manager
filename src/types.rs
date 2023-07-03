@@ -70,12 +70,4 @@ impl Save {
         (1..=category.paths.len()).map(|i| file.join(format!("{}_{}_{}", category.name, i, self.real_index)))
             .collect::<Vec<_>>()
     }
-    
-    
-    // pub fn local_path(&self, category: &Category, data_dir: &Path) -> Box<Path> {
-        // data_dir.join(format!("{}_{}",
-            // category.name,
-            // category.saves.iter().position(|a| a.name == self.name).unwrap()))
-            // .into_boxed_path()
-    // }
 }
