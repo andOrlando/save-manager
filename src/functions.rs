@@ -183,16 +183,16 @@ fn list_categories(app: &App) {
 }
 
 pub fn save(name: &Option<String>) -> AppError {
+
+    let (file, mut app) = load_data();
+    let current = app.current_category_mut()?;
     
     //input validation
     if let Some(name) = name {
         if name.parse::<usize>().is_ok() { return Err("Save name must not be numeric") }
         if name == "auto" { return Err("Save must not be named `auto`") }
+        if current.get_save(name).is_some() { return Err("Save already exists"); }
     } 
-    
-    let (file, mut app) = load_data();
-
-    let current = app.current_category_mut()?;
 
     //copy path into local
     let new_save = Save {

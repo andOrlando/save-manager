@@ -13,3 +13,4 @@ a job seeing this, please give me a job.
 TODO:
 - [X] allow for multiple paths in one save
 - [ ] better error handling for filesystem calls
+- [X] REALLY IMPORTANT disallow multiple saves of the same name
