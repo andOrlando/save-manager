@@ -191,7 +191,7 @@ pub fn save(name: &Option<String>) -> AppError {
     if let Some(name) = name {
         if name.parse::<usize>().is_ok() { return Err("Save name must not be numeric") }
         if name == "auto" { return Err("Save must not be named `auto`") }
-        if current.get_save(name).is_some() { return Err("Save already exists"); }
+        if current.get_save(name).is_ok() { return Err("Save already exists"); }
     } 
 
     //copy path into local
