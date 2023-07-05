@@ -8,6 +8,7 @@ use copy_dir::copy_dir;
 use itertools::izip;
 use std::env::temp_dir;
 use std::fs::{remove_dir_all, canonicalize, metadata, remove_file, rename};
+use std::io::{self, Write};
 use std::path::{PathBuf, Path};
 
 pub fn create(name: &String, paths: &Vec<PathBuf>) -> AppError {
@@ -43,6 +44,20 @@ pub fn delete(name: &String) -> AppError {
 
     let index = app.get_category_index(name)?;
     let category = &app.categories[index];
+    
+    //do a confirmation thingy
+    print!("Attempting to delete {}, type {} to confirm: ",
+        category.name.bold().bright_green(),
+        "Y".bold().green());
+    let mut confirmation = String::new();
+    
+    if io::stdout().flush().is_err() { return Err("Failed to flush stdout") }
+    if io::stdin().read_line(&mut confirmation).is_err() { return Err("Failed to read input") }
+
+    if confirmation != "Y\n" { 
+        println!("Did not delete {}", category.name.bold().bright_green());
+        return Ok(());
+    }
     
     //delete all saves
     for save in &category.saves[..] {
