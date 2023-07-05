@@ -74,9 +74,9 @@ pub enum Command {
     },
     /// Removes version
     Remove {
-        /// Either name or index of version to remove
+        /// List of names or indices to remove
         #[arg(value_name="name|index")]
-        name: String
+        names: Vec<String>
     }
 }
 

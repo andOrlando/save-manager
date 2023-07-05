@@ -243,12 +243,13 @@ pub fn load_name(current: &mut Category, file: &Path, name: &str) -> AppError {
         copy_dir(&local, &source).unwrap();
     }
 
-    current.auto = Some(format!("{}", Utc::now().format("%_m/%d %k:%M")));
+    current.auto = Some(format!("{}", Utc::now().format("%m/%d %H:%M")));
     println!("Loaded version {} in {}",
         save.name.as_ref().unwrap_or(&index.to_string()).bold().green(),
         current.name.bold().bright_green());
     Ok(())
 }
+
 pub fn load_auto(current: &mut Category, file: &Path) -> AppError {
     
     if current.auto.is_none() { return Err("No autosave in current category") }
@@ -325,36 +326,48 @@ pub fn overwrite(name: &String) -> AppError {
     Ok(())
 }
 
-pub fn remove(name: &String) -> AppError {
+pub fn remove(names: &Vec<String>) -> AppError {
     
     let (file, mut app) = load_data();
 
     let current = app.current_category_mut()?;
+    let mut indices = Vec::new();
     
-    let index = if let Ok(index) = name.parse::<usize>() {
-        if current.saves.get(index).is_some() { index }
-        else { return Err("Save with this index does not exist") }
+    for name in names {
+        let index = if let Ok(index) = name.parse::<usize>() {
+            if current.saves.get(index).is_some() { index }
+            else { return Err("Save with this index does not exist") }
 
-    } else { current.get_save_index(&name)? };
-
-    let save = &current.saves[index];
-    let filename = save.name.clone(); //save is removed so we keep name
-    
-    //remove the things
-    for path in save.get_paths(current, &file) {
-        remove_all(&path).unwrap();
+        } else { current.get_save_index(&name)? };
+        
+        indices.push(index);
     }
     
-    //remove it from the other thing
-    current.saves.remove(index);
+    indices.sort();
+    indices.reverse();
+    
+    for index in indices {
+        
+        let save = &current.saves[index];
+        let filename = save.name.clone(); //save is removed so we keep name
+    
+        //remove the things
+        for path in save.get_paths(current, &file) {
+            remove_all(&path).unwrap();
+        }
+    
+        //remove it from the other thing
+        current.saves.remove(index);
 
-    println!("Removed version {} in {}",
-        filename.unwrap_or(index.to_string()).bold().green(),
-        current.name.bold().bright_green());
+        println!("Removed version {} in {}",
+            filename.unwrap_or(index.to_string()).bold().green(),
+            current.name.bold().bright_green());
+        
+    }
+
     save_data(&file, app);
     Ok(())
 }
-
 
 fn remove_all<P: AsRef<Path>>(path: P) -> AppError {
     let res = match metadata(&path).unwrap().is_dir() {

@@ -25,7 +25,7 @@ fn main() {
         Command::Save { name } => save(name),
         Command::Load { name } => load(name),
         Command::Overwrite { name } => overwrite(name),
-        Command::Remove { name } => remove(name),
+        Command::Remove { names } => remove(names),
     };
     
     if res.is_ok() { exit(0) }
